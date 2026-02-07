@@ -418,12 +418,24 @@ def get_fx_data(pairs=['EURUSD=X', 'USDJPY=X', 'GBPUSD=X'], days=365):
             # Direct yfinance fallback
             ticker_data = yf.download(pair, start=start_date, progress=False)
             if not ticker_data.empty:
-                series = ticker_data['Close']
-                if series.notna().sum() > 0:
-                    all_data[pair] = series
-                    if debug_mode: st.success(f"✅ {pair} (direct): {len(ticker_data)} rows")
+                # Handle both DataFrame and Series returns
+                if isinstance(ticker_data, pd.DataFrame):
+                    if 'Close' in ticker_data.columns:
+                        series = ticker_data['Close']
+                    else:
+                        series = ticker_data.iloc[:, 0]
                 else:
-                    if debug_mode: st.warning(f"⚠️ {pair}: Data returned but all NaN")
+                    series = ticker_data
+
+                # Ensure it's a Series before checking
+                if isinstance(series, pd.Series):
+                    if series.notna().sum() > 0:
+                        all_data[pair] = series
+                        if debug_mode: st.success(f"✅ {pair} (direct): {len(ticker_data)} rows")
+                    else:
+                        if debug_mode: st.warning(f"⚠️ {pair}: Data returned but all NaN")
+                else:
+                    if debug_mode: st.warning(f"⚠️ {pair}: Unexpected data type")
             else:
                 if debug_mode: st.warning(f"⚠️ {pair}: No data returned")
         except Exception as e:
@@ -461,7 +473,18 @@ def get_crypto_data(tickers=['BTC-USD', 'ETH-USD', 'SOL-USD'], days=365):
         for ticker in tickers:
             ticker_data = yf.download(ticker, start=start_date, progress=False)
             if not ticker_data.empty:
-                dfs.append(ticker_data['Close'].rename(ticker))
+                # Handle both DataFrame and Series returns
+                if isinstance(ticker_data, pd.DataFrame):
+                    if 'Close' in ticker_data.columns:
+                        close_data = ticker_data['Close']
+                    else:
+                        close_data = ticker_data.iloc[:, 0]
+                else:
+                    close_data = ticker_data
+
+                # Set name directly
+                close_data.name = ticker
+                dfs.append(close_data)
         if dfs:
             df = pd.concat(dfs, axis=1)
             df.index = pd.to_datetime(df.index)
@@ -530,9 +553,24 @@ def get_yield_curve_data(years=2):
             if debug_mode: st.info("🔍 Fetching Treasury Yields via direct yfinance...")
             dfs = []
             for ticker in yield_tickers.keys():
-                ticker_data = yf.download(ticker, start=start_date, progress=False)
-                if not ticker_data.empty:
-                    dfs.append(ticker_data['Close'].rename(ticker))
+                try:
+                    ticker_data = yf.download(ticker, start=start_date, progress=False)
+                    if not ticker_data.empty:
+                        # Handle both DataFrame and Series returns
+                        if isinstance(ticker_data, pd.DataFrame):
+                            if 'Close' in ticker_data.columns:
+                                close_data = ticker_data['Close']
+                            else:
+                                close_data = ticker_data.iloc[:, 0]
+                        else:
+                            close_data = ticker_data
+
+                        # Set name directly
+                        close_data.name = ticker
+                        dfs.append(close_data)
+                except Exception as e:
+                    if debug_mode: st.warning(f"⚠️ {ticker}: {str(e)}")
+
             if dfs:
                 df = pd.concat(dfs, axis=1)
                 data_source = "Yahoo Finance (Direct)"
