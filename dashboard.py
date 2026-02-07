@@ -324,7 +324,7 @@ def get_price_data(tickers, years=5, provider_preference="tiingo"):
 
             for ticker in tickers:
                 try:
-                    ticker_data = yf.download(ticker, start=start_date, progress=False, timeout=10)
+                    ticker_data = yf.download(ticker, start=start_date, progress=False)
                     if not ticker_data.empty:
                         # Handle different yfinance return structures
                         if isinstance(ticker_data, pd.DataFrame):
