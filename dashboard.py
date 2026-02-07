@@ -135,7 +135,7 @@ st.markdown("""
 # --- SIDEBAR CONFIGURATION ---
 with st.sidebar:
     st.header("⚙️ Settings")
-    debug_mode = st.checkbox("Show Debug Logs", value=False)
+    debug_mode = st.checkbox("Show Debug Logs", value=True)
     st.caption("Check this if you see blank screens to view raw data/errors.")
 
     st.markdown("---")
@@ -318,16 +318,29 @@ def get_price_data(tickers, years=5, provider_preference="tiingo"):
     # 3. Direct yfinance fallback (no OpenBB required)
     if df.empty:
         try:
-            if debug_mode: st.write("🔍 Using direct yfinance API...")
+            if debug_mode: st.write(f"🔍 Using direct yfinance API for {len(tickers)} tickers...")
             dfs = []
+            failed_tickers = []
+
             for ticker in tickers:
-                ticker_data = yf.download(ticker, start=start_date, progress=False)
-                if not ticker_data.empty:
-                    dfs.append(ticker_data['Close'].rename(ticker))
+                try:
+                    ticker_data = yf.download(ticker, start=start_date, progress=False, timeout=10)
+                    if not ticker_data.empty and 'Close' in ticker_data.columns:
+                        dfs.append(ticker_data['Close'].rename(ticker))
+                    else:
+                        failed_tickers.append(ticker)
+                except Exception as e:
+                    failed_tickers.append(f"{ticker}({str(e)[:20]})")
+
             if dfs:
                 df = pd.concat(dfs, axis=1)
                 data_source = "Yahoo Finance (Direct)"
-                if debug_mode: st.success(f"✅ Direct yfinance: Loaded {len(df)} rows")
+                if debug_mode:
+                    st.success(f"✅ Direct yfinance: Loaded {len(dfs)}/{len(tickers)} tickers, {len(df)} rows")
+                    if failed_tickers:
+                        st.warning(f"Failed tickers: {', '.join(failed_tickers[:5])}")
+            else:
+                errors.append(f"No data from any ticker. Failed: {failed_tickers}")
         except Exception as e:
             errors.append(f"Direct yfinance Failed: {e}")
             if debug_mode: st.error(f"❌ Direct yfinance failed: {e}")
