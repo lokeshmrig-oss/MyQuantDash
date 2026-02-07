@@ -325,12 +325,24 @@ def get_price_data(tickers, years=5, provider_preference="tiingo"):
             for ticker in tickers:
                 try:
                     ticker_data = yf.download(ticker, start=start_date, progress=False, timeout=10)
-                    if not ticker_data.empty and 'Close' in ticker_data.columns:
-                        dfs.append(ticker_data['Close'].rename(ticker))
+                    if not ticker_data.empty:
+                        # Handle different yfinance return structures
+                        if isinstance(ticker_data, pd.DataFrame):
+                            if 'Close' in ticker_data.columns:
+                                close_data = ticker_data['Close']
+                            else:
+                                # Take the first column if Close doesn't exist
+                                close_data = ticker_data.iloc[:, 0]
+                            dfs.append(close_data.rename(ticker))
+                        elif isinstance(ticker_data, pd.Series):
+                            dfs.append(ticker_data.rename(ticker))
+                        else:
+                            failed_tickers.append(f"{ticker}(unknown type)")
                     else:
-                        failed_tickers.append(ticker)
+                        failed_tickers.append(f"{ticker}(empty)")
                 except Exception as e:
-                    failed_tickers.append(f"{ticker}({str(e)[:20]})")
+                    failed_tickers.append(f"{ticker}({str(e)[:30]})")
+                    if debug_mode: st.write(f"❌ {ticker}: {str(e)}")
 
             if dfs:
                 df = pd.concat(dfs, axis=1)
