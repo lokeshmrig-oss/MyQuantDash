@@ -4,12 +4,20 @@ import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
-from openbb import obb
 import pandas_ta as ta
 import praw
 from transformers import pipeline
 from datetime import datetime, timedelta
 import yfinance as yf
+
+# Optional OpenBB (may not work on Streamlit Cloud due to filesystem restrictions)
+try:
+    from openbb import obb
+    obb.user.preferences.output_type = "dataframe"
+    OBB_AVAILABLE = True
+except (ImportError, PermissionError, Exception):
+    OBB_AVAILABLE = False
+    obb = None
 
 # Optional FRED API for economic indicators
 try:
@@ -20,7 +28,6 @@ except ImportError:
 
 # --- CONFIGURATION ---
 st.set_page_config(layout="wide", page_title="Pro Macro Quant Workstation")
-obb.user.preferences.output_type = "dataframe"
 
 # --- BLOOMBERG-STYLE CUSTOM CSS ---
 st.markdown("""
@@ -278,7 +285,7 @@ def get_price_data(tickers, years=5, provider_preference="tiingo"):
     data_source = "Unknown"
 
     # 1. Try Tiingo first (preferred for professional use)
-    if "tiingo" in st.secrets and provider_preference == "tiingo":
+    if OBB_AVAILABLE and "tiingo" in st.secrets and provider_preference == "tiingo":
         try:
             if debug_mode: st.write(f"🔍 Fetching from TIINGO: {len(tickers)} tickers...")
             data = obb.equity.price.historical(tickers, provider="tiingo", start_date=start_date)
@@ -289,17 +296,34 @@ def get_price_data(tickers, years=5, provider_preference="tiingo"):
             errors.append(f"Tiingo Failed: {e}")
             if debug_mode: st.warning(f"⚠️ TIINGO failed: {e}")
 
-    # 2. Fallback to Yahoo
-    if df.empty:
+    # 2. Fallback to Yahoo via OpenBB
+    if df.empty and OBB_AVAILABLE:
         try:
-            if debug_mode: st.write("🔍 Falling back to Yahoo Finance...")
+            if debug_mode: st.write("🔍 Falling back to Yahoo Finance (OpenBB)...")
             data = obb.equity.price.historical(tickers, provider="yfinance", start_date=start_date)
             df = data.pivot_table(index="date", columns="symbol", values="close")
             data_source = "Yahoo Finance"
             if debug_mode: st.success(f"✅ Yahoo: Loaded {len(df)} rows")
         except Exception as e:
             errors.append(f"Yahoo Failed: {e}")
-            if debug_mode: st.error(f"❌ Yahoo failed: {e}")
+            if debug_mode: st.warning(f"⚠️ Yahoo (OpenBB) failed: {e}")
+
+    # 3. Direct yfinance fallback (no OpenBB required)
+    if df.empty:
+        try:
+            if debug_mode: st.write("🔍 Using direct yfinance API...")
+            dfs = []
+            for ticker in tickers:
+                ticker_data = yf.download(ticker, start=start_date, progress=False)
+                if not ticker_data.empty:
+                    dfs.append(ticker_data['Close'].rename(ticker))
+            if dfs:
+                df = pd.concat(dfs, axis=1)
+                data_source = "Yahoo Finance (Direct)"
+                if debug_mode: st.success(f"✅ Direct yfinance: Loaded {len(df)} rows")
+        except Exception as e:
+            errors.append(f"Direct yfinance Failed: {e}")
+            if debug_mode: st.error(f"❌ Direct yfinance failed: {e}")
 
     # 3. Final processing
     if not df.empty:
@@ -316,7 +340,7 @@ def get_price_data(tickers, years=5, provider_preference="tiingo"):
 @st.cache_data(ttl=1800)
 def get_tiingo_fundamentals(ticker):
     """Fetch TIINGO fundamental metrics"""
-    if "tiingo" in st.secrets:
+    if OBB_AVAILABLE and "tiingo" in st.secrets:
         try:
             meta = obb.equity.profile(ticker, provider="tiingo")
             return meta
@@ -335,13 +359,25 @@ def get_fx_data(pairs=['EURUSD=X', 'USDJPY=X', 'GBPUSD=X'], days=365):
     for pair in pairs:
         try:
             if debug_mode: st.write(f"Fetching {pair}...")
-            data = obb.equity.price.historical(pair, provider="yfinance", start_date=start_date)
-            if not data.empty and 'close' in data.columns:
-                series = data.set_index('date')['close']
-                # Only include if we have valid data (not all NaN)
+
+            # Try OpenBB first if available
+            if OBB_AVAILABLE:
+                data = obb.equity.price.historical(pair, provider="yfinance", start_date=start_date)
+                if not data.empty and 'close' in data.columns:
+                    series = data.set_index('date')['close']
+                    # Only include if we have valid data (not all NaN)
+                    if series.notna().sum() > 0:
+                        all_data[pair] = series
+                        if debug_mode: st.success(f"✅ {pair}: {len(data)} rows, {series.notna().sum()} valid")
+                        continue
+
+            # Direct yfinance fallback
+            ticker_data = yf.download(pair, start=start_date, progress=False)
+            if not ticker_data.empty:
+                series = ticker_data['Close']
                 if series.notna().sum() > 0:
                     all_data[pair] = series
-                    if debug_mode: st.success(f"✅ {pair}: {len(data)} rows, {series.notna().sum()} valid")
+                    if debug_mode: st.success(f"✅ {pair} (direct): {len(ticker_data)} rows")
                 else:
                     if debug_mode: st.warning(f"⚠️ {pair}: Data returned but all NaN")
             else:
@@ -362,15 +398,34 @@ def get_fx_data(pairs=['EURUSD=X', 'USDJPY=X', 'GBPUSD=X'], days=365):
 @st.cache_data(ttl=60)  # 1 min cache for crypto (very volatile)
 def get_crypto_data(tickers=['BTC-USD', 'ETH-USD', 'SOL-USD'], days=365):
     """Get crypto data with shorter cache"""
+    start_date = (datetime.now() - timedelta(days=days)).strftime('%Y-%m-%d')
+    df = pd.DataFrame()
+
+    # Try OpenBB first if available
+    if OBB_AVAILABLE:
+        try:
+            data = obb.crypto.price.historical(tickers, provider="yfinance", start_date=start_date)
+            df = data.pivot_table(index="date", columns="symbol", values="close")
+            df.index = pd.to_datetime(df.index)
+            return df
+        except Exception as e:
+            if debug_mode: st.warning(f"Crypto data (OpenBB) failed: {e}")
+
+    # Direct yfinance fallback
     try:
-        start_date = (datetime.now() - timedelta(days=days)).strftime('%Y-%m-%d')
-        data = obb.crypto.price.historical(tickers, provider="yfinance", start_date=start_date)
-        df = data.pivot_table(index="date", columns="symbol", values="close")
-        df.index = pd.to_datetime(df.index)
-        return df
+        dfs = []
+        for ticker in tickers:
+            ticker_data = yf.download(ticker, start=start_date, progress=False)
+            if not ticker_data.empty:
+                dfs.append(ticker_data['Close'].rename(ticker))
+        if dfs:
+            df = pd.concat(dfs, axis=1)
+            df.index = pd.to_datetime(df.index)
+            return df
     except Exception as e:
-        if debug_mode: st.warning(f"Crypto data fetch failed: {e}")
-        return pd.DataFrame()
+        if debug_mode: st.warning(f"Crypto data (direct yfinance) failed: {e}")
+
+    return pd.DataFrame()
 
 @st.cache_data(ttl=1800)  # 30 min cache for treasury yields
 def get_yield_curve_data(years=2):
@@ -394,7 +449,7 @@ def get_yield_curve_data(years=2):
     # 1. Try TIINGO first (preferred for professional use)
     # Note: As of now, TIINGO doesn't provide treasury yield data, but we structure
     # the code this way for future compatibility and consistency with the codebase
-    if "tiingo" in st.secrets:
+    if OBB_AVAILABLE and "tiingo" in st.secrets:
         try:
             if debug_mode: st.info("🔍 Attempting TIINGO for Treasury Yields...")
             # TIINGO doesn't currently have treasury yields, but we try anyway
@@ -410,10 +465,10 @@ def get_yield_curve_data(years=2):
         except Exception as e:
             if debug_mode: st.info(f"ℹ️ TIINGO treasury yields not available (expected): {str(e)[:100]}")
 
-    # 2. Fallback to Yahoo Finance (primary source for treasury yields)
-    if df.empty:
+    # 2. Fallback to Yahoo Finance via OpenBB
+    if df.empty and OBB_AVAILABLE:
         try:
-            if debug_mode: st.info("🔍 Fetching Treasury Yields from Yahoo Finance...")
+            if debug_mode: st.info("🔍 Fetching Treasury Yields from Yahoo Finance (OpenBB)...")
             data = obb.equity.price.historical(
                 list(yield_tickers.keys()),
                 provider="yfinance",
@@ -423,7 +478,23 @@ def get_yield_curve_data(years=2):
             data_source = "Yahoo Finance"
             if debug_mode: st.success(f"✅ Yahoo Finance: Loaded {len(df)} rows of yield data")
         except Exception as e:
-            if debug_mode: st.error(f"❌ Yahoo Finance treasury yields failed: {e}")
+            if debug_mode: st.warning(f"⚠️ Yahoo Finance (OpenBB) treasury yields failed: {e}")
+
+    # 3. Direct yfinance fallback
+    if df.empty:
+        try:
+            if debug_mode: st.info("🔍 Fetching Treasury Yields via direct yfinance...")
+            dfs = []
+            for ticker in yield_tickers.keys():
+                ticker_data = yf.download(ticker, start=start_date, progress=False)
+                if not ticker_data.empty:
+                    dfs.append(ticker_data['Close'].rename(ticker))
+            if dfs:
+                df = pd.concat(dfs, axis=1)
+                data_source = "Yahoo Finance (Direct)"
+                if debug_mode: st.success(f"✅ Direct yfinance: Loaded {len(df)} rows of yield data")
+        except Exception as e:
+            if debug_mode: st.error(f"❌ Direct yfinance treasury yields failed: {e}")
 
     # Validation and data quality
     if not df.empty:
@@ -1528,7 +1599,7 @@ with tab10:
             news_df = pd.DataFrame()
 
             # Primary: TIINGO News API (Most reliable for quant trading)
-            if "tiingo" in st.secrets:
+            if OBB_AVAILABLE and "tiingo" in st.secrets:
                 try:
                     if debug_mode: st.info("📡 Fetching from TIINGO News API...")
                     news = obb.news.company(symbol=t_s, provider="tiingo", limit=news_limit)
@@ -1539,8 +1610,8 @@ with tab10:
                 except Exception as e:
                     if debug_mode: st.warning(f"⚠️ TIINGO News error: {e}")
 
-            # Fallback: Yahoo Finance News
-            if news_df.empty:
+            # Fallback: Yahoo Finance News via OpenBB
+            if news_df.empty and OBB_AVAILABLE:
                 try:
                     if debug_mode: st.info("📰 Falling back to Yahoo Finance News...")
                     news = obb.news.company(symbol=t_s, provider="yfinance", limit=news_limit)
@@ -1549,6 +1620,10 @@ with tab10:
                         if debug_mode: st.success(f"✅ Yahoo: Retrieved {len(news_df)} articles")
                 except Exception as e:
                     if debug_mode: st.warning(f"⚠️ Yahoo News error: {e}")
+
+            # If OpenBB not available, show info message
+            if news_df.empty and not OBB_AVAILABLE:
+                st.info("📰 News sentiment requires OpenBB package. Using basic Reddit sentiment only.")
 
             if not news_df.empty:
                 # Filter by date range
