@@ -6,9 +6,16 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import pandas_ta as ta
 import praw
-from transformers import pipeline
 from datetime import datetime, timedelta
 import yfinance as yf
+
+# Optional transformers (for FinBERT sentiment - large package)
+try:
+    from transformers import pipeline
+    TRANSFORMERS_AVAILABLE = True
+except (ImportError, Exception):
+    TRANSFORMERS_AVAILABLE = False
+    pipeline = None
 
 # Optional OpenBB (may not work on Streamlit Cloud due to filesystem restrictions)
 try:
@@ -716,7 +723,9 @@ def calculate_market_breadth(sector_data):
 # --- RESOURCES ---
 @st.cache_resource
 def load_finbert():
-    return pipeline("sentiment-analysis", model="ProsusAI/finbert")
+    if TRANSFORMERS_AVAILABLE:
+        return pipeline("sentiment-analysis", model="ProsusAI/finbert")
+    return None
 
 @st.cache_resource
 def init_reddit():
@@ -1633,6 +1642,8 @@ with tab10:
 
                 if len(news_df) == 0:
                     st.warning(f"No news found in the last {time_range}. Try a longer time range.")
+                elif nlp is None:
+                    st.warning("⚠️ FinBERT sentiment analysis requires the transformers package, which is not available. Please install transformers and torch locally to use AI sentiment analysis.")
                 else:
                     # Run FinBERT sentiment analysis
                     st.info(f"🤖 Running FinBERT AI analysis on {len(news_df)} articles...")
