@@ -324,7 +324,11 @@ def get_price_data(tickers, years=5, provider_preference="tiingo"):
 
             for ticker in tickers:
                 try:
+                    if debug_mode: st.write(f"  Downloading {ticker}...")
                     ticker_data = yf.download(ticker, start=start_date, progress=False)
+
+                    if debug_mode: st.write(f"  {ticker} downloaded, type: {type(ticker_data)}")
+
                     if not ticker_data.empty:
                         # Handle different yfinance return structures
                         if isinstance(ticker_data, pd.DataFrame):
@@ -333,16 +337,24 @@ def get_price_data(tickers, years=5, provider_preference="tiingo"):
                             else:
                                 # Take the first column if Close doesn't exist
                                 close_data = ticker_data.iloc[:, 0]
-                            dfs.append(close_data.rename(ticker))
+
+                            # Set the name directly instead of using rename
+                            close_data.name = ticker
+                            dfs.append(close_data)
                         elif isinstance(ticker_data, pd.Series):
-                            dfs.append(ticker_data.rename(ticker))
+                            ticker_data.name = ticker
+                            dfs.append(ticker_data)
                         else:
                             failed_tickers.append(f"{ticker}(unknown type)")
                     else:
                         failed_tickers.append(f"{ticker}(empty)")
                 except Exception as e:
+                    import traceback
+                    error_detail = traceback.format_exc()
                     failed_tickers.append(f"{ticker}({str(e)[:30]})")
-                    if debug_mode: st.write(f"❌ {ticker}: {str(e)}")
+                    if debug_mode:
+                        st.write(f"❌ {ticker}: {str(e)}")
+                        st.code(error_detail)
 
             if dfs:
                 df = pd.concat(dfs, axis=1)
