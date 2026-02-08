@@ -2535,13 +2535,19 @@ with tab3:
         if "Region" in equity_perf.columns and "YTD" in equity_perf.columns:
             regional_avg = equity_perf.groupby("Region")["YTD"].mean().sort_values(ascending=False)
 
+            # Add padding to y-axis for label visibility
+            max_val = regional_avg.max()
+            min_val = regional_avg.min()
+            y_padding = (max_val - min_val) * 0.2  # 20% padding
+
             fig_regional = go.Figure(data=[
                 go.Bar(
                     x=regional_avg.index,
                     y=regional_avg.values,
                     marker_color=['green' if x > 0 else 'red' for x in regional_avg.values],
                     text=[f"{x:+.2f}%" for x in regional_avg.values],
-                    textposition='outside'
+                    textposition='outside',
+                    textfont=dict(size=12, color='white')
                 )
             ])
 
@@ -2549,7 +2555,8 @@ with tab3:
                 title="Average YTD Performance by Region",
                 yaxis_title="Return (%)",
                 height=400,
-                showlegend=False
+                showlegend=False,
+                yaxis=dict(range=[min_val - y_padding, max_val + y_padding])
             )
             st.plotly_chart(fig_regional, use_container_width=True)
 
