@@ -673,15 +673,17 @@ def get_fred_indicators():
                 try:
                     data = fred.get_series(series_id, observation_start='2020-01-01')
                     indicators[name] = data
-                except:
-                    pass
+                except Exception as e:
+                    if debug_mode: st.write(f"⚠️ Failed to fetch {name}: {str(e)[:50]}")
 
             if indicators:
                 df = pd.DataFrame(indicators)
                 df.index = pd.to_datetime(df.index)
                 return df
+            else:
+                st.warning("⚠️ FRED API: No indicators could be fetched. Check your API key or rate limits.")
         except Exception as e:
-            if debug_mode: st.warning(f"FRED API fetch failed: {e}")
+            st.error(f"⚠️ FRED API Error: {str(e)[:100]}. Check your API key in secrets.")
 
     # Return empty DataFrame if FRED not available
     return pd.DataFrame()
