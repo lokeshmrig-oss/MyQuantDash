@@ -6,7 +6,7 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import pandas_ta as ta
 import praw
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import yfinance as yf
 
 # Optional transformers (for FinBERT sentiment - large package)
@@ -265,10 +265,11 @@ def show_data_quality(df, location="sidebar"):
     if df.empty:
         return
 
-    # Show last data date and current fetch time
+    # Show last data date and current fetch time with timezone
     last_data_date = df.index[-1].strftime('%Y-%m-%d') if hasattr(df.index[-1], 'strftime') else str(df.index[-1])
-    current_time = datetime.now().strftime('%H:%M:%S')
-    last_update = f"{last_data_date} {current_time}"
+    current_time_utc = datetime.now(timezone.utc)
+    time_str = current_time_utc.strftime('%H:%M:%S UTC')
+    last_update = f"{last_data_date} {time_str}"
 
     data_points = len(df)
     missing_pct = (df.isnull().sum().sum() / (df.shape[0] * df.shape[1])) * 100 if df.shape[0] * df.shape[1] > 0 else 0
