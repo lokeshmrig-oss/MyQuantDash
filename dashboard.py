@@ -275,7 +275,7 @@ def show_data_quality(df, location="sidebar"):
         st.sidebar.metric("Last Updated", last_update)
         st.sidebar.metric("Data Points", f"{data_points:,}")
         st.sidebar.metric("Missing Data", f"{missing_pct:.2f}%")
-        st.sidebar.caption("Source: TIINGO/Yahoo Finance")
+        st.sidebar.caption("Source: Yahoo Finance & FRED")
     else:
         c1, c2, c3 = st.columns(3)
         c1.metric("Last Updated", last_update)
@@ -816,7 +816,7 @@ def init_reddit():
 
 # --- MAIN DASHBOARD ---
 st.title("🦅 Professional Macro-Quant Workstation")
-st.caption("Powered by TIINGO API • Advanced Analytics for Macro Traders")
+st.caption("Powered by Yahoo Finance & FRED • Advanced Analytics for Macro Traders")
 
 # Create tabs
 tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9, tab10, tab11, tab12 = st.tabs([
@@ -1660,11 +1660,11 @@ with tab9:
             st.info(f"Financials not available: {e}")
 
 # ==============================================================================
-# TAB 6: PROFESSIONAL SENTIMENT ANALYSIS (TIINGO-POWERED)
+# TAB 6: PROFESSIONAL SENTIMENT ANALYSIS
 # ==============================================================================
 with tab10:
     st.subheader("📡 Professional News Sentiment Analysis")
-    st.caption("Powered by TIINGO News Feed & FinBERT AI Model")
+    st.caption("AI-Powered Sentiment Analysis with FinBERT Model")
 
     # Input controls
     col_input1, col_input2, col_input3 = st.columns([2, 1, 1])
@@ -3463,4 +3463,4 @@ with st.sidebar:
         show_data_quality(df_quality, location="sidebar")
 
 st.markdown("---")
-st.caption("🦅 Professional Macro-Quant Workstation | Powered by TIINGO & OpenBB | Built with Streamlit")
+st.caption("🦅 Professional Macro-Quant Workstation | Powered by Yahoo Finance & FRED | Built with Streamlit")
