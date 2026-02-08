@@ -820,18 +820,18 @@ st.caption("Powered by Yahoo Finance & FRED • Advanced Analytics for Macro Tra
 
 # Create tabs
 tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9, tab10, tab11, tab12 = st.tabs([
-    "🌍 Global View",
-    "📈 Macro Dashboard",
-    "🌎 Global Equity Markets",
-    "💱 Currency Dashboard",
-    "📦 Commodities Dashboard",
-    "🔗 Cross-Asset Correlations",
-    "📊 Sector Rotation",
-    "🎯 Factor Analysis",
-    "💎 Stock Fundamentals",
-    "🧠 AI Sentiment",
-    "⚠️ Risk Analytics",
-    "⚖️ Portfolio Analytics"
+    "🌍 Global",
+    "📈 Macro",
+    "🌎 Equities",
+    "💱 FX",
+    "📦 Commodities",
+    "🔗 Correlations",
+    "📊 Sectors",
+    "🎯 Factors",
+    "💎 Stocks",
+    "🧠 Sentiment",
+    "⚠️ Risk",
+    "⚖️ Portfolio"
 ])
 
 # ==============================================================================
