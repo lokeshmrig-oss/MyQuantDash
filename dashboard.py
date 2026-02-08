@@ -2956,13 +2956,19 @@ with tab5:
         if "Category" in cmdty_perf.columns and "YTD" in cmdty_perf.columns:
             cat_avg = cmdty_perf.groupby("Category")["YTD"].mean().sort_values(ascending=False)
 
+            # Add padding to y-axis for label visibility
+            max_val = cat_avg.max()
+            min_val = cat_avg.min()
+            y_padding = (max_val - min_val) * 0.2  # 20% padding
+
             fig_cat = go.Figure(data=[
                 go.Bar(
                     x=cat_avg.index,
                     y=cat_avg.values,
                     marker_color=['green' if x > 0 else 'red' for x in cat_avg.values],
                     text=[f"{x:+.2f}%" for x in cat_avg.values],
-                    textposition='outside'
+                    textposition='outside',
+                    textfont=dict(size=12, color='white')
                 )
             ])
 
@@ -2970,7 +2976,8 @@ with tab5:
                 title="Average YTD Return by Commodity Category",
                 yaxis_title="Return (%)",
                 height=350,
-                showlegend=False
+                showlegend=False,
+                yaxis=dict(range=[min_val - y_padding, max_val + y_padding])
             )
             st.plotly_chart(fig_cat, use_container_width=True)
 
