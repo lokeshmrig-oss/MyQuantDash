@@ -135,7 +135,7 @@ st.markdown("""
 # --- SIDEBAR CONFIGURATION ---
 with st.sidebar:
     st.header("⚙️ Settings")
-    debug_mode = st.checkbox("Show Debug Logs", value=True)
+    debug_mode = st.checkbox("Show Debug Logs", value=False)
     st.caption("Check this if you see blank screens to view raw data/errors.")
 
     st.markdown("---")
