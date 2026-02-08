@@ -2348,19 +2348,27 @@ with tab2:
 
             if selected_indicator:
                 fig_fred = go.Figure()
+
+                # Get the data and remove NaN values
+                chart_data = fred_data[selected_indicator].dropna()
+
                 fig_fred.add_trace(go.Scatter(
-                    x=fred_data.index,
-                    y=fred_data[selected_indicator],
-                    mode='lines',
+                    x=chart_data.index,
+                    y=chart_data.values,
+                    mode='lines+markers',
                     name=selected_indicator,
-                    line=dict(color='cyan', width=2)
+                    line=dict(color='#00D9FF', width=3),
+                    marker=dict(size=4, color='#00D9FF')
                 ))
 
                 fig_fred.update_layout(
                     title=f"{selected_indicator} Historical Trend",
                     yaxis_title="Value",
                     height=350,
-                    hovermode='x unified'
+                    hovermode='x unified',
+                    template='plotly_dark',
+                    plot_bgcolor='rgba(0,0,0,0)',
+                    paper_bgcolor='rgba(0,0,0,0)',
                 )
                 st.plotly_chart(fig_fred, use_container_width=True)
         else:
