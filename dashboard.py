@@ -265,7 +265,11 @@ def show_data_quality(df, location="sidebar"):
     if df.empty:
         return
 
-    last_update = df.index[-1].strftime('%Y-%m-%d %H:%M') if hasattr(df.index[-1], 'strftime') else str(df.index[-1])
+    # Show last data date and current fetch time
+    last_data_date = df.index[-1].strftime('%Y-%m-%d') if hasattr(df.index[-1], 'strftime') else str(df.index[-1])
+    current_time = datetime.now().strftime('%H:%M:%S')
+    last_update = f"{last_data_date} {current_time}"
+
     data_points = len(df)
     missing_pct = (df.isnull().sum().sum() / (df.shape[0] * df.shape[1])) * 100 if df.shape[0] * df.shape[1] > 0 else 0
 
